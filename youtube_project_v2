@@ -1,0 +1,195 @@
+-- Project: Virality and Trending on YouTube
+-- Goal: Increase odds to go viral and trend on YouTube
+
+-- ===========================================
+-- Data Cleaning & Inspection
+SELECT *
+FROM yt_data;
+
+-- Check column data type
+EXEC sp_columns yt_data;
+
+-- Change data type
+ALTER TABLE yt_data
+ALTER COLUMN publish_date NVARCHAR(20);
+
+ALTER TABLE yt_data
+ALTER COLUMN trending_date NVARCHAR(20);
+
+-- Standardize trending_date and publish_date
+ALTER TABLE yt_data
+ADD true_trending_date DATE,
+    true_publish_date DATE;
+
+ALTER TABLE yt_data
+ALTER COLUMN views FLOAT;
+
+ALTER TABLE yt_data
+ALTER COLUMN likes FLOAT;
+
+ALTER TABLE yt_data
+ALTER COLUMN dislikes FLOAT;
+
+ALTER TABLE yt_data
+ALTER COLUMN comment_count FLOAT;
+
+-- Publish_date has european date format
+UPDATE yt_data
+SET true_publish_date = TRY_CONVERT(DATE, publish_date, 104);
+
+-- Inspect raw data format pattern (yy.dd.mm) 
+SELECT TOP 20 trending_date
+FROM yt_data
+WHERE trending_date IS NOT NULL;
+
+-- ===========================================
+
+-- Manually fix format
+    -- Aligns 
+UPDATE yt_data
+SET true_trending_date = TRY_CONVERT(
+    DATE,
+    '20' + LEFT(trending_date, 2) + '-' +  -- Year: add 20 + first 2 chars (YY → 20YY)
+    RIGHT(trending_date, 2) + '-' +        -- Month: last 2 chars (MM)
+    SUBSTRING(trending_date, 4, 2)         -- Day: middle 2 chars (DD)
+);
+
+-- Show TRUE/FALSE values
+
+ALTER TABLE yt_data
+ADD comments_disabled_fix VARCHAR(5),
+    ratings_disabled_fix VARCHAR(5),
+    video_error_or_removed_fix VARCHAR(5);
+
+UPDATE yt_data
+SET comments_disabled_fix = CASE WHEN comments_disabled = 1 THEN 'TRUE' ELSE 'FALSE' END,
+    ratings_disabled_fix = CASE WHEN ratings_disabled = 1 THEN 'TRUE' ELSE 'FALSE' END,
+    video_error_or_removed_fix = CASE WHEN video_error_or_removed = 1 THEN 'TRUE' ELSE 'FALSE' END;
+
+-- Clean mixed data 
+UPDATE retail_holiday
+SET SchoolHoliday =
+    CASE 
+        WHEN SchoolHoliday = 'SchoolHoliday' THEN NULL
+        ELSE SchoolHoliday
+    END;
+
+-- Remove unwanted columns
+SELECT *
+INTO youtube_project.dbo.yt_data_backup
+FROM youtube_project.dbo.yt_data;
+
+AlTER TABLE yt_data
+DROP COLUMN trending_date, publish_date;
+
+-- Data Exploration -- 
+
+-- How many videos?
+SELECT COUNT(video_id) AS total_videos
+FROM yt_data;
+
+-- Gives us a snap shot on engagement
+SELECT 'views' AS metric,
+     ROUND(AVG(views), 2) AS avg_value, MIN(views) AS min_value, MAX(views) AS max_value,  ROUND(STDEV(views), 2) AS stdev_value
+FROM yt_data
+UNION ALL
+SELECT 'likes',  ROUND(AVG(likes), 2), MIN(likes), MAX(likes),  ROUND(STDEV(likes) ,2)
+FROM yt_data
+UNION ALL
+SELECT 'dislikes',  ROUND(AVG(dislikes), 2), MIN(dislikes), MAX(dislikes), ROUND(STDEV(dislikes) ,2)
+FROM yt_data
+UNION ALL
+SELECT 'comment_count', ROUND(AVG(comment_count), 2), MIN(comment_count), MAX(comment_count), ROUND(STDEV(comment_count) ,2)
+FROM yt_data;
+
+-- Looking for seasonal impact
+    --best months to trend is from March-May
+SELECT 
+    DATEFROMPARTS(YEAR(true_trending_date), MONTH(true_trending_date), 1) AS month_start,
+    SUM(views) AS month_total_views
+FROM yt_data
+GROUP BY 
+    DATEFROMPARTS(YEAR(true_trending_date), MONTH(true_trending_date), 1)
+ORDER BY month_total_views DESC;
+
+-- What are the Top 10 most viewed channels (group by channel and sum views)
+    -- Top 10 consist mostly of music channels
+SELECT TOP 10 channel_title, SUM(views) AS total_views
+FROM yt_data
+GROUP BY channel_title
+ORDER BY total_views DESC;
+
+
+-- Looking for the avg view + video count per channel
+    -- More videos does not lead to more views 
+SELECT 
+    channel_title,
+    ROUND(AVG(views),2) AS avg_views,
+    COUNT(DISTINCT video_id) AS total_video
+FROM yt_data
+GROUP BY channel_title
+Order by total_video DESC, avg_views DESC;
+
+--Country with the highest views & likes, can potentially lead into global trends
+SELECT 
+    publish_country,
+    SUM(likes) AS total_country_likes,
+    SUM(views) AS total_country_views
+FROM yt_data
+GROUP BY publish_country
+ORDER BY total_country_views DESC;
+
+-- What is the highest viewed channel in GB?
+    -- Look into NickyJamTv for further analysis for insight
+SELECT 
+    publish_country, channel_title, 
+    SUM(views) AS total_views, 
+    COUNT(DISTINCT video_id) AS total_videos, 
+    SUM(likes) AS total_likes
+FROM yt_data
+WHERE publish_country = 'GB'
+GROUP BY channel_title, publish_country
+ORDER BY total_views DESC;
+
+
+--  We are looking to see what day gives the best chance to go viral/trend
+    -- I thought Saturday would be top 3
+SELECT 
+    published_day_of_week, 
+    SUM(views) as total_views 
+FROM yt_data
+GROUP BY published_day_of_week
+ORDER BY total_views DESC;
+
+
+-- How long did it take to go viral?
+SELECT
+    video_id, 
+    true_publish_date, 
+    channel_title,
+    true_trending_date, 
+    views,
+DATEDIFF(day, true_publish_date, true_trending_date) AS days_to_trending
+FROM yt_data
+WHERE true_trending_date IS NOT NULL --ignore videos that never trended
+ORDER BY days_to_trending ASC, views DESC;
+
+-- Seperate videos by virality 
+--   Looking at distribution spread
+SELECT 
+    view_category_scale, 
+    COUNT(*) AS video_count
+FROM (
+    SELECT 
+    CASE 
+        WHEN views < 1000000 THEN 'Low'
+        WHEN views BETWEEN 1000001 AND 10000000 THEN 'Medium'
+        ELSE 'High'
+    END AS view_category_scale
+FROM yt_data
+) AS sub
+GROUP BY view_category_scale
+ORDER BY video_count DESC;
+
+select*
+from yt_data;
