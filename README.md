@@ -34,9 +34,9 @@ Key metrics analyzed:
 
 | Metric | Top Performer | Value | Insight |
 |--------|---------------|-------|---------|
-| Total Views | Channel X | 12,345,678 | Largest reach, mostly music content |
-| Avg Views per Video | Channel Y | 1,234,567 | High engagement despite fewer uploads |
-| Fastest Trending Video | Video Z | 1 day | Content type/strategy drives rapid virality |
+| Total Views | ChildishGambinoVEVO | 10,425,338,513 | Largest reach, mostly music content |
+| Avg Views per Video | VikatanTV | 583,969.06 | High engagement despite fewer uploads |
+| Fastest Trending Video | T-Series | 1 days | Content type/strategy drives rapid virality |
 | Best Month | March | 45,000,000 views | Seasonal trend — pre-summer spike |
 | Best Publishing Day | Saturday | 8,000,000 views | Weekend publishing boosts visibility |
 
